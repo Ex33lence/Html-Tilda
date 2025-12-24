@@ -5,6 +5,7 @@ interface EditorProps {
   value: string;
   onChange: (value: string) => void;
   onStatsChange?: (stats: { chars: number; words: number; lines: number; sizeKb: string }) => void;
+  darkMode?: boolean;
 }
 
 export interface EditorHandle {
@@ -12,7 +13,7 @@ export interface EditorHandle {
   selectAll: () => void;
 }
 
-const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStatsChange }, ref) => {
+const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStatsChange, darkMode }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
@@ -59,11 +60,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStats
   const linesCount = value.split('\n').length;
 
   return (
-    <div className="flex-1 flex overflow-hidden relative bg-white roboto-mono text-[13px] leading-relaxed h-full">
+    <div className={`flex-1 flex overflow-hidden relative transition-colors duration-300 roboto-mono text-[13px] leading-relaxed h-full ${darkMode ? 'bg-[#121212]' : 'bg-white'}`}>
       {/* Нумерация строк */}
       <div 
         ref={lineNumbersRef}
-        className="w-12 bg-gray-50 text-slate-300 text-right pr-3 pt-4 select-none border-r border-slate-100 overflow-hidden shrink-0 transition-colors"
+        className={`w-12 text-right pr-3 pt-4 select-none border-r overflow-hidden shrink-0 transition-colors duration-300 ${
+          darkMode ? 'bg-[#181818] text-[#444] border-[#2c2c2c]' : 'bg-gray-50 text-slate-300 border-slate-100'
+        }`}
       >
         {Array.from({ length: Math.max(linesCount, 1) }).map((_, i) => (
           <div key={i} className="h-[21px]">{i + 1}</div>
@@ -81,7 +84,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStats
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
-          className="w-full h-full p-4 bg-transparent text-slate-800 caret-blue-600 resize-none outline-none whitespace-pre-wrap border-none z-10 overflow-y-auto overflow-x-hidden roboto-mono"
+          className={`w-full h-full p-4 bg-transparent caret-blue-600 resize-none outline-none whitespace-pre-wrap border-none z-10 overflow-y-auto overflow-x-hidden roboto-mono transition-colors duration-300 ${
+            darkMode ? 'text-gray-300 selection:bg-blue-900/50' : 'text-slate-800 selection:bg-blue-100'
+          }`}
           style={{ 
             tabSize: 2,
             fontFamily: "'Roboto Mono', monospace",

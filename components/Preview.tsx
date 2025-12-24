@@ -11,9 +11,10 @@ interface PreviewProps {
   zoom: number;
   onLog: (log: any) => void;
   isRefreshing: boolean;
+  darkMode?: boolean;
 }
 
-const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, zoom, onLog, isRefreshing }) => {
+const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, zoom, onLog, isRefreshing, darkMode }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -24,7 +25,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
     const calculateScale = () => {
       if (!containerRef.current) return;
       
-      // Отступы для комфортного просмотра (уменьшены для мобилок, чтобы устройство было крупнее)
       const padding = deviceConfig.frame === 'phone' ? 80 : 160; 
       const availW = containerRef.current.clientWidth - padding;
       const availH = containerRef.current.clientHeight - padding;
@@ -63,10 +63,9 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (!doc) return;
 
-      // Добавляем сброс стилей (margin: 0) и фикс для высоты, чтобы не было "белых полей"
       const styleReset = `
         <style>
-          body { margin: 0; padding: 0; min-height: 100vh; }
+          body { margin: 0; padding: 0; min-height: 100vh; background: white; }
           img { max-width: 100%; height: auto; display: block; }
           * { box-sizing: border-box; }
         </style>
@@ -106,16 +105,19 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
   }, [code]);
 
   const getFrameBaseStyles = () => {
+    const shadowClass = darkMode ? 'shadow-[0_20px_50px_rgba(0,0,0,0.6)]' : 'shadow-2xl';
+    const ringClass = darkMode ? 'ring-4 ring-black/40' : 'ring-4 ring-black/5';
+
     switch (deviceConfig.frame) {
       case 'phone': 
-        return 'border-[12px] border-[#1a1a1a] rounded-[44px] ring-4 ring-black/10 bg-[#1a1a1a]';
+        return `border-[12px] border-[#1a1a1a] rounded-[44px] ${ringClass} bg-[#1a1a1a] ${shadowClass}`;
       case 'tablet': 
-        return 'border-[12px] border-[#2f2f2f] rounded-[24px] ring-4 ring-black/10 bg-[#2f2f2f]';
+        return `border-[12px] border-[#2f2f2f] rounded-[24px] ${ringClass} bg-[#2f2f2f] ${shadowClass}`;
       case 'laptop': 
-        return 'border-[14px] border-[#222] border-b-[20px] rounded-t-[18px] rounded-b-[4px] shadow-2xl bg-[#222]';
+        return `border-[14px] border-[#222] border-b-[20px] rounded-t-[18px] rounded-b-[4px] bg-[#222] ${shadowClass}`;
       case 'monitor':
       case 'desktop': 
-        return 'border-[16px] border-[#1a1a1a] border-b-[40px] rounded-[10px] shadow-2xl bg-[#1a1a1a]';
+        return `border-[16px] border-[#1a1a1a] border-b-[40px] rounded-[10px] bg-[#1a1a1a] ${shadowClass}`;
       default: 
         return 'rounded-sm ring-1 ring-gray-200 bg-white';
     }
@@ -133,7 +135,7 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
   };
 
   return (
-    <div ref={containerRef} className="flex-1 bg-[#f1f3f4] relative flex items-center justify-center overflow-hidden">
+    <div ref={containerRef} className={`flex-1 relative flex items-center justify-center overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-[#1c1c1c]' : 'bg-[#f1f3f4]'}`}>
       <div 
         id="device-host"
         style={{ 
@@ -146,7 +148,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
         }}
         className={`relative shrink-0 ${getFrameBaseStyles()} ${isRefreshing ? 'refreshing' : ''}`}
       >
-        {/* Внутренний контейнер с обрезкой углов */}
         <div 
           className="absolute inset-0 overflow-hidden bg-white" 
           style={{ borderRadius: getIframeRadius() }}
@@ -157,7 +158,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
             className="w-full h-full border-none bg-white"
           />
           
-          {/* Сетка Tilda (внутри обрезки) */}
           <div 
             style={{ width: gridSize, opacity: gridActive ? 1 : 0 }}
             className="absolute inset-y-0 left-1/2 -translate-x-1/2 grid grid-cols-12 gap-5 pointer-events-none z-40 transition-opacity duration-300"
@@ -168,9 +168,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
           </div>
         </div>
 
-        {/* Детализация рамок */}
-
-        {/* Ноутбук: База */}
         {deviceConfig.frame === 'laptop' && (
           <>
             <div className="absolute -top-[10px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#333] rounded-full z-[60]" />
@@ -180,7 +177,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
           </>
         )}
 
-        {/* Монитор/ПК: Подставка */}
         {(deviceConfig.frame === 'monitor' || deviceConfig.frame === 'desktop') && (
           <div className="absolute -bottom-[125px] left-1/2 -translate-x-1/2 flex flex-col items-center z-[-1]">
              <div className="w-24 h-[90px] bg-gradient-to-r from-[#777] via-[#aaa] to-[#777] shadow-inner" />
@@ -188,7 +184,6 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
           </div>
         )}
 
-        {/* Вырезы для телефонов */}
         {deviceConfig.frame === 'phone' && (
            device === 'iphone' ? (
              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-[#1a1a1a] rounded-full z-[60] flex items-center justify-end px-3 gap-1.5 ring-1 ring-white/5">
