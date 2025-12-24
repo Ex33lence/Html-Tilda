@@ -104,6 +104,34 @@ const App: React.FC = () => {
     setCode(prev => prev.split(emoji).join(''));
   };
 
+  const copyCodeToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      handleLog({ level: 'info', message: 'Код скопирован в буфер обмена' });
+    } catch (err) {
+      handleLog({ level: 'error', message: 'Ошибка при копировании кода' });
+    }
+  };
+
+  const pasteCodeFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setCode(text);
+        handleLog({ level: 'info', message: 'Код вставлен из буфера обмена' });
+      }
+    } catch (err) {
+      handleLog({ level: 'error', message: 'Ошибка при вставке кода (проверьте разрешения)' });
+    }
+  };
+
+  const clearAllCode = () => {
+    if (window.confirm('Очистить весь код?')) {
+      setCode('');
+      handleLog({ level: 'info', message: 'Редактор очищен' });
+    }
+  };
+
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return;
@@ -507,7 +535,40 @@ const App: React.FC = () => {
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
                     TILDA-RENDER READY
                 </div>
-                <div className="text-[10px] font-bold text-gray-300 uppercase">EX33 V7 ULTIMATE</div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100 p-1">
+                    <button 
+                      onClick={copyCodeToClipboard}
+                      className="p-1.5 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all text-gray-400 active:scale-90"
+                      title="Копировать код"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button 
+                      onClick={pasteCodeFromClipboard}
+                      className="p-1.5 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all text-gray-400 active:scale-90"
+                      title="Вставить код"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                    </button>
+                    <button 
+                      onClick={() => editorRef.current?.selectAll()}
+                      className="p-1.5 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all text-gray-400 active:scale-90"
+                      title="Выделить всё"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
+                    </button>
+                    <button 
+                      onClick={clearAllCode}
+                      className="p-1.5 hover:bg-white hover:text-red-600 hover:shadow-sm rounded-lg transition-all text-gray-400 active:scale-90"
+                      title="Очистить всё"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                  <div className="text-[10px] font-bold text-gray-300 uppercase">EX33 V7 ULTIMATE</div>
+                </div>
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ interface EditorProps {
 
 export interface EditorHandle {
   focusAndSelect: (text: string) => void;
+  selectAll: () => void;
 }
 
 const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStatsChange }, ref) => {
@@ -35,6 +36,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStats
         textareaRef.current.scrollTop = (linesBefore - 5) * lineHeight;
         syncScroll();
       }
+    },
+    selectAll: () => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      textareaRef.current.select();
     }
   }));
 
