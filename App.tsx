@@ -77,6 +77,7 @@ const App: React.FC = () => {
   };
 
   const handleFocusText = (text: string) => {
+    if (!text) return;
     setActiveTab(TabType.CODE);
     setTimeout(() => {
         editorRef.current?.focusAndSelect(text);
@@ -88,22 +89,14 @@ const App: React.FC = () => {
     setCode(prev => prev.split(oldVal).join(newVal));
   };
 
-  // Безопасное удаление медиа-элемента
   const removeMediaSafe = (url: string) => {
     const escapedUrl = url.replace(/[.*+?^${}()|[\]\ll]/g, '\\$&');
-    
-    // 1. Пытаемся удалить целиком тег <img>, если URL там
     const imgTagRegex = new RegExp(`<img[^>]*src=["']${escapedUrl}["'][^>]*>`, 'gi');
     let newCode = code.replace(imgTagRegex, '');
-    
-    // 2. Если URL в CSS (background-image: url(...))
     const cssUrlRegex = new RegExp(`url\\(['"]?${escapedUrl}['"]?\\)`, 'gi');
     newCode = newCode.replace(cssUrlRegex, 'none');
-
-    // 3. На случай если это просто атрибут в другом теге (например, poster у видео)
     const genericAttrRegex = new RegExp(`\\s[a-z-]+=["']${escapedUrl}["']`, 'gi');
     newCode = newCode.replace(genericAttrRegex, '');
-
     setCode(newCode);
   };
 
@@ -130,16 +123,97 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const capturePreview = async () => {
+  const prepareCanvasForCapture = async (): Promise<HTMLCanvasElement | null> => {
     const el = document.getElementById('device-host');
-    if (!el) return;
-    // @ts-ignore
-    html2canvas(el, { useCORS: true, scale: 2 }).then(canvas => {
+    if (!el) return null;
+
+    // Создаем контейнер-обертку для скриншота с "воздухом"
+    const shotWrapper = document.createElement('div');
+    shotWrapper.style.padding = '80px';
+    shotWrapper.style.backgroundColor = '#f1f3f4';
+    shotWrapper.style.display = 'inline-block';
+    shotWrapper.style.position = 'absolute';
+    shotWrapper.style.top = '-9999px';
+    shotWrapper.style.left = '-9999px';
+    document.body.appendChild(shotWrapper);
+
+    // Клонируем элемент устройства
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.style.transform = 'none'; // Убираем масштабирование предпросмотра
+    clone.style.margin = '0';
+    clone.style.boxShadow = '0 30px 60px rgba(0,0,0,0.15)'; // Усиливаем тень для эффекта на скриншоте
+    shotWrapper.appendChild(clone);
+
+    // Важный хак для html2canvas: переносим содержимое iframe в DOM клона
+    const originalIframe = el.querySelector('iframe');
+    const cloneIframeContainer = clone.querySelector('.overflow-hidden'); // Контейнер, где лежал iframe
+    
+    if (originalIframe && cloneIframeContainer) {
+      const iframeDoc = originalIframe.contentDocument || originalIframe.contentWindow?.document;
+      if (iframeDoc) {
+        // Удаляем пустой iframe из клона
+        const emptyIframe = cloneIframeContainer.querySelector('iframe');
+        if (emptyIframe) emptyIframe.remove();
+        
+        // Создаем div, который будет имитировать содержимое окна браузера
+        const contentMock = document.createElement('div');
+        contentMock.style.width = '100%';
+        contentMock.style.height = '100%';
+        contentMock.style.backgroundColor = 'white';
+        contentMock.style.overflow = 'hidden';
+        contentMock.innerHTML = iframeDoc.documentElement.innerHTML;
+        
+        // Добавляем стили сброса прямо в мок, чтобы верстка не развалилась при захвате
+        const style = document.createElement('style');
+        style.innerHTML = `body { margin: 0; padding: 0; } * { box-sizing: border-box; }`;
+        contentMock.prepend(style);
+        
+        cloneIframeContainer.appendChild(contentMock);
+      }
+    }
+
+    try {
+      // @ts-ignore
+      const canvas = await html2canvas(shotWrapper, { 
+        useCORS: true, 
+        scale: 2, 
+        backgroundColor: null,
+        logging: false
+      });
+      return canvas;
+    } catch (err) {
+      console.error('Canvas preparation error:', err);
+      return null;
+    } finally {
+      document.body.removeChild(shotWrapper);
+    }
+  };
+
+  const capturePreview = async () => {
+    const canvas = await prepareCanvasForCapture();
+    if (canvas) {
       const link = document.createElement('a');
-      link.download = `Ex33_Shot_${Date.now()}.png`;
-      link.href = canvas.toDataURL();
+      link.download = `Ex33_Pro_Shot_${device}_${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
       link.click();
-    });
+    }
+  };
+
+  const copyScreenshotToClipboard = async () => {
+    const canvas = await prepareCanvasForCapture();
+    if (!canvas) return;
+
+    try {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        handleLog({ level: 'info', message: 'Скриншот скопирован в буфер обмена' });
+      }, 'image/png');
+    } catch (err) {
+      console.error('Clipboard error:', err);
+      handleLog({ level: 'error', message: 'Не удалось скопировать скриншот' });
+    }
   };
 
   return (
@@ -173,13 +247,20 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={capturePreview} className="p-3 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm" title="Скриншот">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </button>
+          <div className="flex items-center bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <button onClick={copyScreenshotToClipboard} className="p-3 hover:bg-gray-50 transition-colors border-r border-gray-100 active:scale-90" title="Скопировать скрин в буфер">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            </button>
+            <button onClick={capturePreview} className="p-3 hover:bg-gray-50 transition-colors active:scale-90" title="Скачать скриншот устройства">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+          </div>
           <button onClick={() => {
               const w = window.open();
-              w?.document.write(code);
-              w?.document.close();
+              if (w) {
+                w.document.write(code);
+                w.document.close();
+              }
           }} className="p-3 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm" title="На весь экран">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
           </button>
@@ -190,28 +271,48 @@ const App: React.FC = () => {
       <main className="flex-1 flex overflow-hidden p-4 pt-0 gap-4">
         {/* LEFT: EDITOR PANE */}
         <div style={{ width: `${editorWidth}%` }} className="flex flex-col gap-3 shrink-0 min-w-[300px]">
-          <div className="bg-white rounded-[24px] p-3 border border-gray-200 shadow-sm flex items-center gap-3">
-            <div className="flex flex-1 items-center gap-2 bg-gray-50 rounded-xl px-4 py-2">
-              <input 
-                type="text" 
-                placeholder="Найти..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm outline-none w-full font-medium" 
-              />
-              <div className="w-[1px] h-4 bg-gray-300"></div>
-              <input 
-                type="text" 
-                placeholder="Заменить..." 
-                value={replaceQuery}
-                onChange={e => setReplaceQuery(e.target.value)}
-                className="bg-transparent text-sm outline-none w-full font-medium" 
-              />
-              <button onClick={handleReplaceAll} className="text-blue-600 text-[10px] font-bold hover:bg-blue-50 px-2 h-6 rounded uppercase transition-colors">Заменить</button>
+          <div className="bg-white rounded-[24px] p-2 border border-gray-200 shadow-sm flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-1">
+              <div className="flex flex-1 items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5 border border-transparent focus-within:border-blue-200 focus-within:bg-white transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input 
+                  type="text" 
+                  placeholder="Найти в коде..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFocusText(searchQuery)}
+                  className="bg-transparent text-xs outline-none w-full font-medium" 
+                />
+                <button 
+                  onClick={() => handleFocusText(searchQuery)} 
+                  className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${searchQuery ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-300 pointer-events-none'}`}
+                >
+                  НАЙТИ
+                </button>
+              </div>
+              <button onClick={beautifyCode} className="p-2 hover:bg-blue-50 text-blue-600 rounded-xl transition-colors" title="Причесать код">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+              </button>
             </div>
-            <button onClick={beautifyCode} className="p-2.5 hover:bg-blue-50 text-blue-600 rounded-xl transition-colors" title="Причесать">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
-            </button>
+            
+            <div className="flex items-center gap-2 px-1 pb-1">
+              <div className="flex flex-1 items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5 border border-transparent focus-within:border-blue-200 focus-within:bg-white transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-400"><path d="M17 3L21 7L17 11"/><path d="M3 13L7 17L3 21"/><path d="M21 7H3"/><path d="M3 17H21"/></svg>
+                <input 
+                  type="text" 
+                  placeholder="Заменить на..." 
+                  value={replaceQuery}
+                  onChange={e => setReplaceQuery(e.target.value)}
+                  className="bg-transparent text-xs outline-none w-full font-medium" 
+                />
+                <button 
+                  onClick={handleReplaceAll} 
+                  className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${searchQuery ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-300 pointer-events-none'}`}
+                >
+                  ЗАМЕНИТЬ ВСЁ
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="flex-1 bg-white rounded-[24px] border border-gray-200 shadow-sm overflow-hidden flex flex-col">

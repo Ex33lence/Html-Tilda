@@ -13,13 +13,10 @@ export interface EditorHandle {
 
 const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStatsChange }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
   const syncScroll = useCallback(() => {
-    if (textareaRef.current && highlightRef.current && lineNumbersRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    if (textareaRef.current && lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
     }
   }, []);
@@ -32,30 +29,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStats
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(index, index + text.length);
         
-        // Simple scroll to line
+        // Расчет прокрутки к найденному тексту
         const linesBefore = value.substring(0, index).split('\n').length;
-        const lineHeight = 20.8; // Estimated
+        const lineHeight = 21; // Соответствует leading-relaxed (1.625 * 13px)
         textareaRef.current.scrollTop = (linesBefore - 5) * lineHeight;
         syncScroll();
       }
     }
   }));
-
-  const highlightCode = (code: string) => {
-    let highlighted = code
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    highlighted = highlighted.replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="text-slate-400 italic">$1</span>');
-    highlighted = highlighted.replace(/(&lt;\/?)([a-z0-9-]+)/gi, '$1<span class="text-blue-600 font-semibold">$2</span>');
-    highlighted = highlighted.replace(/\s([a-z-]+)=/gi, ' <span class="text-amber-600">$1</span>=');
-    highlighted = highlighted.replace(/"([^"]*)"/g, '"<span class="text-emerald-600 font-medium">$1</span>"');
-    highlighted = highlighted.replace(/'([^']*)'/g, `'<span class="text-emerald-600 font-medium">$1</span>'`);
-    highlighted = highlighted.replace(/([a-z-]+)\s*:/gi, '<span class="text-purple-600">$1</span>:');
-
-    return highlighted;
-  };
 
   useEffect(() => {
     if (onStatsChange) {
@@ -72,29 +53,34 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ value, onChange, onStats
   const linesCount = value.split('\n').length;
 
   return (
-    <div className="flex-1 flex overflow-hidden relative bg-[#fafafa] roboto-mono text-[13px] leading-relaxed h-full">
+    <div className="flex-1 flex overflow-hidden relative bg-white roboto-mono text-[13px] leading-relaxed h-full">
+      {/* Нумерация строк */}
       <div 
         ref={lineNumbersRef}
-        className="w-12 bg-white text-slate-300 text-right pr-3 pt-4 select-none border-r border-slate-100 overflow-hidden shrink-0"
+        className="w-12 bg-gray-50 text-slate-300 text-right pr-3 pt-4 select-none border-r border-slate-100 overflow-hidden shrink-0 transition-colors"
       >
         {Array.from({ length: Math.max(linesCount, 1) }).map((_, i) => (
-          <div key={i}>{i + 1}</div>
+          <div key={i} className="h-[21px]">{i + 1}</div>
         ))}
       </div>
 
+      {/* Основное поле ввода */}
       <div className="relative flex-1 overflow-hidden">
-        <div 
-          ref={highlightRef}
-          className="absolute inset-0 p-4 pointer-events-none whitespace-pre-wrap break-words overflow-auto z-0"
-          dangerouslySetInnerHTML={{ __html: highlightCode(value) + "\n" }}
-        />
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onScroll={syncScroll}
           spellCheck={false}
-          className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-blue-600 resize-none outline-none whitespace-pre-wrap break-words z-10 overflow-auto"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          className="w-full h-full p-4 bg-transparent text-slate-800 caret-blue-600 resize-none outline-none whitespace-pre-wrap border-none z-10 overflow-y-auto overflow-x-hidden roboto-mono"
+          style={{ 
+            tabSize: 2,
+            fontFamily: "'Roboto Mono', monospace",
+            wordBreak: 'break-word'
+          }}
         />
       </div>
     </div>

@@ -24,7 +24,8 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
     const calculateScale = () => {
       if (!containerRef.current) return;
       
-      const padding = 200; // Увеличен отступ для вмещения подставок
+      // Отступы для комфортного просмотра (уменьшены для мобилок, чтобы устройство было крупнее)
+      const padding = deviceConfig.frame === 'phone' ? 80 : 160; 
       const availW = containerRef.current.clientWidth - padding;
       const availH = containerRef.current.clientHeight - padding;
       
@@ -62,6 +63,15 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (!doc) return;
 
+      // Добавляем сброс стилей (margin: 0) и фикс для высоты, чтобы не было "белых полей"
+      const styleReset = `
+        <style>
+          body { margin: 0; padding: 0; min-height: 100vh; }
+          img { max-width: 100%; height: auto; display: block; }
+          * { box-sizing: border-box; }
+        </style>
+      `;
+
       const logCapture = `
         <script>
           (function() {
@@ -81,7 +91,13 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
       `;
 
       doc.open();
-      doc.write(code.includes('<head>') ? code.replace('<head>', '<head>' + logCapture) : logCapture + code);
+      let fullCode = code;
+      if (fullCode.includes('<head>')) {
+        fullCode = fullCode.replace('<head>', '<head>' + styleReset + logCapture);
+      } else {
+        fullCode = styleReset + logCapture + fullCode;
+      }
+      doc.write(fullCode);
       doc.close();
     };
 
@@ -92,16 +108,16 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
   const getFrameBaseStyles = () => {
     switch (deviceConfig.frame) {
       case 'phone': 
-        return 'border-[12px] border-[#1a1a1a] rounded-[44px] ring-4 ring-black/5';
+        return 'border-[12px] border-[#1a1a1a] rounded-[44px] ring-4 ring-black/10 bg-[#1a1a1a]';
       case 'tablet': 
-        return 'border-[12px] border-[#2f2f2f] rounded-[24px] ring-4 ring-black/5';
+        return 'border-[12px] border-[#2f2f2f] rounded-[24px] ring-4 ring-black/10 bg-[#2f2f2f]';
       case 'laptop': 
-        return 'border-[14px] border-[#222] border-b-[20px] rounded-t-[18px] rounded-b-[4px] shadow-2xl';
+        return 'border-[14px] border-[#222] border-b-[20px] rounded-t-[18px] rounded-b-[4px] shadow-2xl bg-[#222]';
       case 'monitor':
       case 'desktop': 
-        return 'border-[16px] border-[#1a1a1a] border-b-[40px] rounded-[10px] shadow-2xl';
+        return 'border-[16px] border-[#1a1a1a] border-b-[40px] rounded-[10px] shadow-2xl bg-[#1a1a1a]';
       default: 
-        return 'rounded-sm ring-1 ring-gray-200';
+        return 'rounded-sm ring-1 ring-gray-200 bg-white';
     }
   };
 
@@ -128,11 +144,11 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
           transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.4s ease, height 0.4s ease',
           boxSizing: 'content-box'
         }}
-        className={`relative bg-white shrink-0 ${getFrameBaseStyles()} ${isRefreshing ? 'refreshing' : ''}`}
+        className={`relative shrink-0 ${getFrameBaseStyles()} ${isRefreshing ? 'refreshing' : ''}`}
       >
         {/* Внутренний контейнер с обрезкой углов */}
         <div 
-          className="absolute inset-0 overflow-hidden" 
+          className="absolute inset-0 overflow-hidden bg-white" 
           style={{ borderRadius: getIframeRadius() }}
         >
           <iframe 
@@ -152,7 +168,7 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
           </div>
         </div>
 
-        {/* --- Детализация рамок (СНАРУЖИ overflow-hidden, но ВНУТРИ device-host) --- */}
+        {/* Детализация рамок */}
 
         {/* Ноутбук: База */}
         {deviceConfig.frame === 'laptop' && (
@@ -167,9 +183,7 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
         {/* Монитор/ПК: Подставка */}
         {(deviceConfig.frame === 'monitor' || deviceConfig.frame === 'desktop') && (
           <div className="absolute -bottom-[125px] left-1/2 -translate-x-1/2 flex flex-col items-center z-[-1]">
-             {/* Ножка */}
              <div className="w-24 h-[90px] bg-gradient-to-r from-[#777] via-[#aaa] to-[#777] shadow-inner" />
-             {/* Основание */}
              <div className="w-72 h-6 bg-gradient-to-b from-[#999] to-[#666] rounded-t-xl shadow-lg border-b border-black/20" />
           </div>
         )}
@@ -178,7 +192,7 @@ const Preview: React.FC<PreviewProps> = ({ code, device, gridActive, gridSize, z
         {deviceConfig.frame === 'phone' && (
            device === 'iphone' ? (
              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-[#1a1a1a] rounded-full z-[60] flex items-center justify-end px-3 gap-1.5 ring-1 ring-white/5">
-                <div className="w-1.5 h-1.5 bg-blue-500/20 rounded-full animate-pulse"></div>
+                <div className="w-1.5 h-1.5 bg-blue-500/20 rounded-full"></div>
                 <div className="w-2.5 h-2.5 bg-[#0a0a0a] rounded-full border border-white/5"></div>
              </div>
            ) : (
